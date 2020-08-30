@@ -1,1 +1,1 @@
-# GI3-FruitsColorClassification
+# TUM-GI3-FruitsColorClassification
