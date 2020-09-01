@@ -9,7 +9,6 @@
 #include "model.h"              // Fruit classification tensorflowlite model
 
 
-
 /** ------------------------------------------------------------------
  *  TensorflowLite libaries
  *  @ Arduino_TensorflowLite 1.14.0-ALPHA 
@@ -19,7 +18,6 @@
 #include "tensorflow/lite/experimental/micro/micro_interpreter.h"
 #include "tensorflow/lite/schema/schema_generated.h"
 #include "tensorflow/lite/version.h"
-
 
 
 /** ------------------------------------------------------------------
@@ -44,7 +42,6 @@ constexpr int tensorArenaSize = 8 * 1024;
 byte tensorArena[tensorArenaSize];
 
 
-
 /** -------------------------------------------------------------------
  *  Other important dependencies
  **/
@@ -54,11 +51,11 @@ CayenneLPP lpp(51);   // Define CayenneLPP buffer size
 Adafruit_TCS34725 tcs = Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_50MS, TCS34725_GAIN_4X);
 
 
-
 /** -------------------------------------------------------------------
  *  Some nice bool*, char* and int* 
  **/
-char buffer[256];           // char buffer for Cayenne
+// Declare a string buffer for Cayenne
+char buffer[256];           
 
 // Array to map color index to a name
 const char* CLASSES[] = 
@@ -70,7 +67,15 @@ const char* CLASSES[] =
   "Lime"
 };
 
-
+// Array to map color index to the classes' name
+int CLASSES_INDEX[] =
+{
+  0, //"Apple",
+  1, //"Empty",
+  2, //"Fig",
+  3, //"Lemon", 
+  4, //"Lime"
+};
 
 /** -------------------------------------------------------------------
  *  Some nice #define
@@ -84,8 +89,7 @@ const char* CLASSES[] =
 #define AppKey "23B25633C587EAAE0274D8D1E0F80432"
 
 // Number of predicted classes
-#define NUM_CLASSES (sizeof(CLASSES) / sizeof(CLASSES[0])) 
-
+#define NUM_CLASSES (sizeof(CLASSES) / sizeof(CLASSES[0]))
 
 
 /** ------------------------------------------------------------------
@@ -221,7 +225,6 @@ void setup()
 }
 
 
-
 /** ------------------------------------------------------------------
  *  loop() function
  **/
@@ -320,18 +323,27 @@ void loop()
           return;
         }
 
-        // Print the data in CSV format
+        // Print the current RGB values
         Serial.println("Current RGB values from the sensor: ");
         Serial.println((String) "R: " + red + " | G: " + green + " | B: " + blue);
         Serial.println();
         Serial.println("Prediction from the above RGB values are: ");
-        
+
+        for (int i = 0; i < NUM_CLASSES; i++) 
+        {
+          int probability[] = {tflOutputTensor->data.f[i] * 100};
+          Serial.println(probability[i]);
+        }
+
         // Output the prediction
         for (int i = 0; i < NUM_CLASSES; i++) 
         {
           Serial.print(CLASSES[i]);
+          Serial.print("[");
+          Serial.print(CLASSES_INDEX[i]);
+          Serial.print("]");
           Serial.print(": ");
-          Serial.print(int(tflOutputTensor->data.f[i] * 100)); // 
+          Serial.print(int(tflOutputTensor->data.f[i] * 100)); 
           Serial.print("%\n");
         }
 
@@ -353,21 +365,47 @@ void loop()
         unsigned int nloops = 0;                        // Loop counting for sending LoRa package      
         float red, green, blue;                         // Float values for RGB data 
         readColorSensorData(&red, &green, &blue);       // Getting RGB data from sensor
-        
-        // Print the data in CSV format
-        Serial.println("Current RGB values from the sensor are: ");
-        Serial.println((String) red + "," + green + "," + blue);
-        Serial.println();
 
-        lpp.reset();                          // Resets the Cayenne buffer
-        lpp.addAnalogOutput(1, int(red));          // Encodes the red value as float on channel 1 in Cayenne AnalogOutput format 
-        lpp.addAnalogOutput(2, int(green));        // Encodes the green value as float on channel 2 in Cayenne AnalogOutput format 
-        lpp.addAnalogOutput(3, int(blue));         // Encodes the blue value as float on channel 3 in Cayenne AnalogOutput format 
-         
+        // Input current sensor reading data to tensorflow model
+        tflInputTensor->data.f[0] = red;
+        tflInputTensor->data.f[1] = green;
+        tflInputTensor->data.f[2] = blue;
+
+        // Run inferencing
+        TfLiteStatus invokeStatus = tflInterpreter->Invoke();
+        
+        if (invokeStatus != kTfLiteOk) 
+        {
+          Serial.println("Invoke failed!");
+          while (1);
+          return;
+        }
+        
+        // Print the current RGB values
+        Serial.println("Current RGB values from the sensor are: ");
+        Serial.println((String) "R: " + red + " | G: " + green + " | B: " + blue);
+        Serial.println();
+        Serial.println("Prediction from the current RGB values are: ");
+
+        // Output the prediction
+        for (int i = 0; i < NUM_CLASSES; i++) 
+        {
+          Serial.print(CLASSES[i]); 
+          Serial.print(" = ");
+          Serial.print(int(tflOutputTensor->data.f[i] * 100)); // 
+          Serial.print("%\n");
+        }
+
+        lpp.reset();                           // Resets the Cayenne buffer
+        lpp.addAnalogOutput(1, red);          // Encodes the red value as float on channel 1 in Cayenne AnalogOutput format 
+        lpp.addAnalogOutput(2, green);        // Encodes the green value as float on channel 2 in Cayenne AnalogOutput format 
+        lpp.addAnalogOutput(3, blue);         // Encodes the blue value as float on channel 3 in Cayenne AnalogOutput format 
+        
         // Checking the data sending loop
         nloops++;
         if (Serial) 
         {
+          Serial.println();
           Serial.println((String)"Sending package #: " + nloops + " ......");
           Serial.println();
         }
@@ -406,6 +444,7 @@ void loop()
   
         if (Serial) 
         {
+          Serial.println();
           Serial.println((String)"Package # " + nloops + " sent succesfully!\n");
         }
  
