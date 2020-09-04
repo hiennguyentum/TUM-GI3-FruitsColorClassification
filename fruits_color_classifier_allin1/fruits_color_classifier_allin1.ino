@@ -54,6 +54,9 @@ Adafruit_TCS34725 tcs = Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_50MS, TCS3472
 /** -------------------------------------------------------------------
  *  Some nice bool*, char* and int* 
  **/
+// Loop counting for sending LoRa package or anything
+unsigned int nloops;                            
+ 
 // Declare a string buffer for Cayenne
 char buffer[256];           
 
@@ -112,8 +115,8 @@ void setup()
         }
     }  
 
-  delay(5000);                        // Wait 5 secs after reset/booting to give time for potential upload
-                                      // of a new sketch (sketches cannot be uploaded when in sleep mode)
+  delay(5000);                          // Wait 5 secs after reset/booting to give time for potential upload
+                                        // of a new sketch (sketches cannot be uploaded when in sleep mode)
 
   // Initialize serial connection  
   Serial.begin(9600);
@@ -131,7 +134,6 @@ void setup()
     Serial.println("No TCS34725 found ... check your connections");
     while (1); // halt!
   }
-
 
   /** --------------------------------------------------------------------------------
    *  TensorflowLite Setup Section
@@ -216,6 +218,8 @@ void setup()
   Serial.println("Join Geoinformatik3 TTN LoRaWAN successful!");
   Serial.println();
 
+  nloops = 0;                           // Start loop counting
+
 
   /** --------------------------------------------------------------------------------
    *  Next Instruction
@@ -245,7 +249,7 @@ void loop()
     **/
     if (command == "help") 
     {
-        Serial.println("Input command: 'help' registered ! ");       
+        Serial.println(" Command input ==> 'help' registered ! ");       
         Serial.println();
         
         Serial.println("Available commands: ");
@@ -261,7 +265,7 @@ void loop()
     **/
     else if (command == "capture") 
     {
-        Serial.println("'capture' command registered ! ");       
+        Serial.println(" Command input ==> 'capture' registered ! ");       
         Serial.println();
           
         String objName;
@@ -302,12 +306,12 @@ void loop()
     **/
     else if (command == "predict") 
     {
-        Serial.println("'predict' command registered ! ");       
+        Serial.println(" Command input ==> 'predict' registered ! ");       
         Serial.println();
         
         float red, green, blue;                         // Float values for RGB data 
         readColorSensorData(&red, &green, &blue);       // Getting RGB data from sensor
-
+        
         // Input current sensor reading data to tensorflow model
         tflInputTensor->data.f[0] = red;
         tflInputTensor->data.f[1] = green;
@@ -328,22 +332,19 @@ void loop()
         Serial.println((String) "R: " + red + " | G: " + green + " | B: " + blue);
         Serial.println();
         Serial.println("Prediction from the above RGB values are: ");
-
-        for (int i = 0; i < NUM_CLASSES; i++) 
-        {
-          int probability[] = {tflOutputTensor->data.f[i] * 100};
-          Serial.println(probability[i]);
-        }
-
+        Serial.println();
+        
         // Output the prediction
         for (int i = 0; i < NUM_CLASSES; i++) 
         {
+          int probability[] = {tflOutputTensor->data.f[i] * 100};
+
           Serial.print(CLASSES[i]);
-          Serial.print("[");
+          Serial.print(" [");
           Serial.print(CLASSES_INDEX[i]);
           Serial.print("]");
           Serial.print(": ");
-          Serial.print(int(tflOutputTensor->data.f[i] * 100)); 
+          Serial.print(probability[i]); 
           Serial.print("%\n");
         }
 
@@ -358,11 +359,10 @@ void loop()
     **/
     else if (command == "send") 
     {
-        Serial.println("'send' command registered ! ");       
+        Serial.println("Command input ==> 'send' registered ! ");       
         Serial.println();
         
-        bool result = false;                            // Boolean for LoRa package transferring
-        unsigned int nloops = 0;                        // Loop counting for sending LoRa package      
+        bool result = false;                            // Boolean for LoRa package transferring      
         float red, green, blue;                         // Float values for RGB data 
         readColorSensorData(&red, &green, &blue);       // Getting RGB data from sensor
 
@@ -385,71 +385,59 @@ void loop()
         Serial.println("Current RGB values from the sensor are: ");
         Serial.println((String) "R: " + red + " | G: " + green + " | B: " + blue);
         Serial.println();
-        Serial.println("Prediction from the current RGB values are: ");
+
+        Serial.println("Fruits type prediction based on the RGB values above are: ");
+        // Output the prediction
+        for (int i = 0; i < NUM_CLASSES; i++) 
+        {
+          int probability[] = {tflOutputTensor->data.f[i] * 100};
+          
+          Serial.print(CLASSES[i]);
+          Serial.print(" [");
+          Serial.print(CLASSES_INDEX[i]);
+          Serial.print("]");
+          Serial.print(": ");
+          Serial.print(probability[i]); 
+          Serial.print("%\n");
+        }
+
+        lpp.reset();                          // Resets the Cayenne buffer
+        lpp.addAnalogOutput(1, red);          // Encodes the red value as float on channel 1 in Cayenne AnalogOutput format 
+        lpp.addAnalogOutput(2, green);        // Encodes the green value as float on channel 2 in Cayenne AnalogOutput format 
+        lpp.addAnalogOutput(3, blue);         // Encodes the blue value as float on channel 3 in Cayenne AnalogOutput format 
 
         // Output the prediction
         for (int i = 0; i < NUM_CLASSES; i++) 
         {
-          Serial.print(CLASSES[i]); 
-          Serial.print(" = ");
-          Serial.print(int(tflOutputTensor->data.f[i] * 100)); // 
-          Serial.print("%\n");
+          int probability[] = {tflOutputTensor->data.f[i] * 100};
+          if (probability[i] > 75)
+          {
+            lpp.addDigitalOutput(4, CLASSES_INDEX[i]);
+            lpp.addDigitalOutput(5, probability[i]);
+            delay(10000);
+          } 
         }
 
-        lpp.reset();                           // Resets the Cayenne buffer
-        lpp.addAnalogOutput(1, red);          // Encodes the red value as float on channel 1 in Cayenne AnalogOutput format 
-        lpp.addAnalogOutput(2, green);        // Encodes the green value as float on channel 2 in Cayenne AnalogOutput format 
-        lpp.addAnalogOutput(3, blue);         // Encodes the blue value as float on channel 3 in Cayenne AnalogOutput format 
-        
-        // Checking the data sending loop
         nloops++;
-        if (Serial) 
+        if (Serial)
         {
-          Serial.println();
-          Serial.println((String)"Sending package #: " + nloops + " ......");
-          Serial.println();
+            Serial.println();
+            Serial.println((String)"Sending data packet [#" + nloops + "] to FROST Server .... ");
+            Serial.println();
         }
-        
-        // Send it off
-        result = lora.transferPacket(lpp.getBuffer(), lpp.getSize(), 5);   // sends the Cayenne encoded data packet (n bytes) with a default timeout of 5 secs
-        // result = lora.transferPacket(lpp.getBuffer(), 5);
-          
-        if (result)
+
+        // Send the Cayenne encoded data packet (n bytes) off with a default timeout of 5 secs
+        result = lora.transferPacket(lpp.getBuffer(), lpp.getSize(), 5);
+            
+        //if result == true)
+        if (Serial)
         {
-          char rx[256];
-          short length;
-          short rssi;
-          length = lora.receivePacket(rx, 256, &rssi);
-          
-          if (length)
-          {
-            if (Serial) 
-            {
-              Serial.println((String)"Length is: " + length);
-              Serial.println((String)"RSSI is: " + rssi);
-              Serial.println("Data is: ");
-              for (unsigned char i = 0; i < length; i ++)
-              {
-                Serial.print("0x");
-                Serial.print(rx[i], HEX);
-                Serial.print(" "); 
-              }        
-              
-              // Convert received package to int
-              int rx_data_asInteger = atoi(rx);      
-              Serial.println("Received data: " + String(rx_data_asInteger));
-            }
-          } 
-         }
-  
-        if (Serial) 
-        {
-          Serial.println();
-          Serial.println((String)"Package # " + nloops + " sent succesfully!\n");
+            // Message for when data package got sent
+            Serial.println();
+            Serial.println((String)"Data packet [#" + nloops + "] sent succesfully!\n");
+            delay(1000);
         }
- 
-//        delay(60000);
-        
+     
         Serial.println("Type in the command box either 'capture', 'predict' or 'send' to continue ");       
         Serial.println();
     }
