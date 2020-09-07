@@ -205,20 +205,22 @@ void setup()
     
   lora.setPower(14);                    // LoRa transceiver power (14 is the maximum for the 868 MHz band)
   lora.setPort(33);
- 
+
+
   unsigned int nretries;
   nretries = 0;
   while (!lora.setOTAAJoin(JOIN, 20)) {
     nretries++;
     if (Serial) {
-      Serial.println((String)"Join failed, retry: " + nretries);
+      Serial.println((String)"Join failed, retry: " + nloops);
     }
   }
   Serial.println();
   Serial.println("Join Geoinformatik3 TTN LoRaWAN successful!");
   Serial.println();
-
+  
   nloops = 0;                           // Start loop counting
+  
 
 
   /** --------------------------------------------------------------------------------
@@ -429,7 +431,6 @@ void loop()
         // Send the Cayenne encoded data packet (n bytes) off with a default timeout of 5 secs
         result = lora.transferPacket(lpp.getBuffer(), lpp.getSize(), 5);
             
-        //if result == true)
         if (Serial)
         {
             // Message for when data package got sent
