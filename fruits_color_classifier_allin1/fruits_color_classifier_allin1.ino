@@ -206,21 +206,20 @@ void setup()
   lora.setPower(14);                    // LoRa transceiver power (14 is the maximum for the 868 MHz band)
   lora.setPort(33);
 
-
   unsigned int nretries;
   nretries = 0;
+  
   while (!lora.setOTAAJoin(JOIN, 20)) {
     nretries++;
     if (Serial) {
-      Serial.println((String)"Join failed, retry: " + nloops);
+      Serial.println((String)"Join failed, retry: " + nretries);
     }
   }
   Serial.println();
   Serial.println("Join Geoinformatik3 TTN LoRaWAN successful!");
   Serial.println();
   
-  nloops = 0;                           // Start loop counting
-  
+  nloops = 0;                           // Start loop counting for 'Send' command  
 
 
   /** --------------------------------------------------------------------------------
