@@ -55,7 +55,7 @@ Adafruit_TCS34725 tcs = Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_50MS, TCS3472
  *  Some nice bool*, char* and int* 
  **/
 // Loop counting for sending LoRa package or anything
-unsigned int nloops;                            
+unsigned int nloops = 0;                            
  
 // Declare a string buffer for Cayenne
 char buffer[256];           
@@ -205,22 +205,16 @@ void setup()
     
   lora.setPower(14);                    // LoRa transceiver power (14 is the maximum for the 868 MHz band)
   lora.setPort(33);
-
-  unsigned int nretries;
-  nretries = 0;
   
   while (!lora.setOTAAJoin(JOIN, 20)) {
-    nretries++;
+    nloops++;
     if (Serial) {
-      Serial.println((String)"Join failed, retry: " + nretries);
+      Serial.println((String)"Join failed, retry: " + nloops);
     }
   }
   Serial.println();
   Serial.println("Join Geoinformatik3 TTN LoRaWAN successful!");
   Serial.println();
-  
-  nloops = 0;                           // Start loop counting for 'Send' command  
-
 
   /** --------------------------------------------------------------------------------
    *  Next Instruction
@@ -362,7 +356,7 @@ void loop()
     {
         Serial.println("Command input ==> 'send' registered ! ");       
         Serial.println();
-        
+
         bool result = false;                            // Boolean for LoRa package transferring      
         float red, green, blue;                         // Float values for RGB data 
         readColorSensorData(&red, &green, &blue);       // Getting RGB data from sensor
@@ -419,7 +413,7 @@ void loop()
           } 
         }
 
-        nloops++;
+        nloops++;                                       // Start loop counting
         if (Serial)
         {
             Serial.println();
