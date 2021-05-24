@@ -1,1 +1,1 @@
-FruitsColorClassification
+Seeduino LoRaWAN FruitsColorClassification
